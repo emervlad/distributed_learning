@@ -12,12 +12,21 @@ logger = logging.getLogger("__name__")
 
 
 def init(model: torch.nn.Module, criterion: torch.nn.Module):
+    if torch.cuda.device_count() > 1
+      torch.distributed.init_process_group(
+          "nccl",
+          rank=torch.distributed.get_rank(),
+          world_size=torch.cuda.device_count()
+      )
     return DCFramework(model, criterion)
 
 
 class DCFramework:
     def __init__(self, model: torch.nn.Module, criterion: torch.nn.Module, lr=1e-3, on_cuda: bool = False):
+        self.gpuc = torch.cuda.device_count()
         self.model = model.cuda() if on_cuda else model.cpu()
+        if self.gpuc > 1:
+	  model = torch.nn.parallel.DistributedDataParallel(model)
         self.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         self.criterion = criterion
         self.on_cuda = on_cuda
@@ -40,14 +49,14 @@ class DCFramework:
         }
 
     def train_step(self, batch, batch_indx):
-        device = "cuda" if self.on_cuda else "cpu"
+        device = device = f"cuda:{torch.distributed.get_rank()}" if self.on_cuda else "cpu"
         output = self.forward(*batch.to(device))
         loss = output["loss"]
         loss.backward()
         self.optimizer.step()
 
     def validate_step(self, batch, batch_indx):
-        device = "cuda" if self.on_cuda else "cpu"
+        device = device = f"cuda:{torch.distributed.get_rank()}" if self.on_cuda else "cpu"
         output = self.forward(*batch.to(device))
         loss = output["loss"]
 

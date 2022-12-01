@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data.distributed import DistributedSampler
 
 
 class Dataset:
@@ -18,8 +19,13 @@ class Dataset:
         return self._data["feature"].size(0)
 
     def get_dataloader(self, batch_size):
-        train_dataloader = torch.utils.data.DataLoader(
+        if torch.cuda.device_count() < 2:
+	  return train_dataloader = torch.utils.data.DataLoader(
             self, batch_size=batch_size, collate_fn=self.default_collate_fn
+        )
+        sampler = DistributedSampler(self)
+        train_dataloader = torch.utils.data.DataLoader(
+            self, sampler=sampler, batch_size=batch_size, collate_fn=self.default_collate_fn
         )
         return train_dataloader
 
